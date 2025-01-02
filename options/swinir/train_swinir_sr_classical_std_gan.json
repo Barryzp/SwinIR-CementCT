@@ -1,0 +1,113 @@
+{
+  "task": "train_swinir_sr_gan_std_4_wgan",
+  "model": "gan",
+  "gpu_ids": [0],
+  "dist": true,
+  "scale": 4,
+  "n_channels": 1,
+  "path": {
+    "root": "superresolution",
+    "pretrained_netG": null,
+    "pretrained_netE": null
+  },
+  "datasets": {
+    "train": {
+      "name": "train_dataset",
+      "dataset_type": "blindsr",
+      "dataroot_H": "dataset/cement_5w/HR/",
+      "dataroot_L": "dataset/cement_5w/LR/X4/",
+      "degradation_type": "bsrgan",
+      "H_size": 256,
+      "shuffle_prob": 0.1,
+      "lq_patchsize": 64,
+      "use_sharp": true,
+      "dataloader_shuffle": true,
+      "dataloader_num_workers": 8,
+      "dataloader_batch_size": 32
+    },
+    "test": {
+      "name": "test_dataset",
+      "dataset_type": "blindsr",
+      "degradation_type": "bsrgan",
+      "H_size": 256,
+      "shuffle_prob": 0.1,
+      "lq_patchsize": 64,
+      "use_sharp": false,
+      "dataroot_H": "testsets/cement_5w_test/HR/",
+      "dataroot_L": "testsets/cement_5w_test/LR/X4/"
+    }
+  },
+  "netG": {
+    "net_type": "swinir",
+    "upscale": 4,
+    "in_chans": 1,
+    "img_size": 128,
+    "window_size": 8,
+    "img_range": 1.0,
+    "depths": [
+      6,
+      6,
+      6,
+      6
+    ],
+    "embed_dim": 96,
+    "num_heads": [
+      6,
+      6,
+      6,
+      6
+    ],
+    "mlp_ratio": 2,
+    "upsampler": "pixelshuffle",
+    "resi_connection": "1conv",
+    "init_type": "default"
+  },
+  "netD": {
+    "net_type": "discriminator_unet" ,
+    "in_nc": 1,
+     "base_nc": 64,
+     "n_layers": 3,
+     "norm_type": "spectral",
+     "init_type": "orthogonal",
+     "init_bn_type": "uniform",
+     "init_gain": 0.2
+  },
+  "train": {
+    "G_lossfn_type": "l1",
+    "G_lossfn_weight": 1.0,
+    "F_lossfn_type": "l1", 
+    "F_lossfn_weight": 1,
+    "F_feature_layer": [2,7,16,25,34],
+    "F_weights": [0.1,0.1,1.0,1.0,1.0],
+    "F_use_input_norm": true,
+    "F_use_range_norm": false,
+    "gan_type": "wgan",
+    "D_lossfn_weight": 0.1,
+    "E_decay": 0.999,
+    "D_init_iters": 0,
+    "G_optimizer_type": "adamW",
+    "G_optimizer_lr": 1e-4,
+    "G_optimizer_wd": 1e-4,
+    "D_optimizer_type": "adam",
+
+    "G_optimizer_clipgrad": null,
+    "G_optimizer_reuse": true,
+    "G_scheduler_type": "MultiStepLR",
+    "G_scheduler_milestones": [10000, 20000, 25000],
+    "G_scheduler_gamma": 0.5,
+    "G_regularizer_orthstep": null,
+    "G_regularizer_clipstep": null,
+    "D_optimizer_lr": 1e-4,
+    "D_optimizer_wd": 0,
+    "D_scheduler_type": "MultiStepLR", 
+    "D_scheduler_milestones": [10000, 20000, 25000], 
+    "D_scheduler_gamma": 0.5, 
+    "D_optimizer_reuse": false,
+    "G_param_strict": true,
+    "D_param_strict": true,
+    "E_param_strict": true,
+    "checkpoint_test": 1000,
+    "checkpoint_save": 1000,
+    "checkpoint_print": 100
+  }
+}
