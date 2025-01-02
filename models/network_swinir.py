@@ -490,6 +490,79 @@ class RSTB(nn.Module):
 
         return flops
 
+# 定义稠密连接RSTB
+class RDG(nn.Module):
+    def __init__(self, dim, input_resolution, depth, num_heads, window_size, shift_size, mlp_ratio, qkv_bias, qk_scale, drop, attn_drop, drop_path, norm_layer, gc, patch_size, img_size):
+        super(RDG, self).__init__()
+
+        self.swin1 = SwinTransformerBlock(dim=dim, input_resolution=input_resolution,
+                                          num_heads=num_heads, window_size=window_size,
+                                          shift_size=0,  # For first block
+                                          mlp_ratio=mlp_ratio,
+                                          qkv_bias=qkv_bias, qk_scale=qk_scale,
+                                          drop=drop, attn_drop=attn_drop,
+                                          drop_path=drop_path[0] if isinstance(drop_path, list) else drop_path,
+                                          norm_layer=norm_layer)
+        self.adjust1 = nn.Conv2d(dim, gc, 1) 
+        
+        self.swin2 = SwinTransformerBlock(dim + gc, input_resolution=input_resolution,
+                                          num_heads=num_heads - ((dim + gc)%num_heads), window_size=window_size,
+                                          shift_size=window_size//2,  # For first block
+                                          mlp_ratio=mlp_ratio,
+                                          qkv_bias=qkv_bias, qk_scale=qk_scale,
+                                          drop=drop, attn_drop=attn_drop,
+                                          drop_path=drop_path[0] if isinstance(drop_path, list) else drop_path,
+                                          norm_layer=norm_layer)
+        self.adjust2 = nn.Conv2d(dim+gc, gc, 1) 
+        
+        self.swin3 = SwinTransformerBlock(dim + 2 * gc, input_resolution=input_resolution,
+                                          num_heads=num_heads - ((dim + 2 * gc)%num_heads), window_size=window_size,
+                                          shift_size=0,  # For first block
+                                          mlp_ratio=mlp_ratio,
+                                          qkv_bias=qkv_bias, qk_scale=qk_scale,
+                                          drop=drop, attn_drop=attn_drop,
+                                          drop_path=drop_path[0] if isinstance(drop_path, list) else drop_path,
+                                          norm_layer=norm_layer)
+        self.adjust3 = nn.Conv2d(dim+gc*2, gc, 1) 
+        
+        self.swin4 = SwinTransformerBlock(dim + 3 * gc, input_resolution=input_resolution,
+                                          num_heads=num_heads - ((dim + 3 * gc)%num_heads), window_size=window_size,
+                                          shift_size=window_size//2,  # For first block
+                                          mlp_ratio=1,
+                                          qkv_bias=qkv_bias, qk_scale=qk_scale,
+                                          drop=drop, attn_drop=attn_drop,
+                                          drop_path=drop_path[0] if isinstance(drop_path, list) else drop_path,
+                                          norm_layer=norm_layer)
+        self.adjust4 = nn.Conv2d(dim+gc*3, gc, 1) 
+        
+        self.swin5 = SwinTransformerBlock(dim + 4 * gc, input_resolution=input_resolution,
+                                          num_heads=num_heads - ((dim + 4 * gc)%num_heads), window_size=window_size,
+                                          shift_size=0,  # For first block
+                                          mlp_ratio=1,
+                                          qkv_bias=qkv_bias, qk_scale=qk_scale,
+                                          drop=drop, attn_drop=attn_drop,
+                                          drop_path=drop_path[0] if isinstance(drop_path, list) else drop_path,
+                                          norm_layer=norm_layer)
+        self.adjust5 = nn.Conv2d(dim+gc*4, dim, 1) 
+        
+        self.lrelu = nn.LeakyReLU(negative_slope=0.2, inplace=True)
+        
+        self.pe = PatchEmbed(
+            img_size=img_size, patch_size=patch_size, in_chans=0, embed_dim=dim,
+            norm_layer=None)
+
+        self.pue = PatchUnEmbed(
+            img_size=img_size, patch_size=patch_size, in_chans=0, embed_dim=dim,
+            norm_layer=None)
+
+    def forward(self, x, xsize):
+        x1 = self.pe(self.lrelu(self.adjust1(self.pue(self.swin1(x,xsize), xsize))))
+        x2 = self.pe(self.lrelu(self.adjust2(self.pue(self.swin2(torch.cat((x, x1), -1), xsize), xsize))))
+        x3 = self.pe(self.lrelu(self.adjust3(self.pue(self.swin3(torch.cat((x, x1, x2), -1), xsize), xsize))))
+        x4 = self.pe(self.lrelu(self.adjust4(self.pue(self.swin4(torch.cat((x, x1, x2, x3), -1), xsize), xsize))))
+        x5 = self.pe(           self.adjust5(self.pue(self.swin5(torch.cat((x, x1, x2, x3, x4), -1), xsize), xsize)))
+
+        return x5 * 0.2 + x
 
 class PatchEmbed(nn.Module):
     r""" Image to Patch Embedding
@@ -648,6 +721,7 @@ class SwinIR(nn.Module):
                  drop_rate=0., attn_drop_rate=0., drop_path_rate=0.1,
                  norm_layer=nn.LayerNorm, ape=False, patch_norm=True,
                  use_checkpoint=False, upscale=2, img_range=1., upsampler='', resi_connection='1conv',
+                 deep_feature_module='RSTB',
                  **kwargs):
         super(SwinIR, self).__init__()
         num_in_ch = in_chans
@@ -698,10 +772,13 @@ class SwinIR(nn.Module):
         # stochastic depth
         dpr = [x.item() for x in torch.linspace(0, drop_path_rate, sum(depths))]  # stochastic depth decay rule
 
+
         # build Residual Swin Transformer blocks (RSTB)
         self.layers = nn.ModuleList()
         for i_layer in range(self.num_layers):
-            layer = RSTB(dim=embed_dim,
+            layer = None
+            if deep_feature_module == "RSTB":
+                layer = RSTB(dim=embed_dim,
                          input_resolution=(patches_resolution[0],
                                            patches_resolution[1]),
                          depth=depths[i_layer],
@@ -717,8 +794,22 @@ class SwinIR(nn.Module):
                          img_size=img_size,
                          patch_size=patch_size,
                          resi_connection=resi_connection
-
                          )
+            elif deep_feature_module == "RDG":
+                # 这个gc就默认设置为32吧
+                layer = RDG(dim=embed_dim, 
+                         input_resolution=(patches_resolution[0], patches_resolution[1]),
+                         num_heads= num_heads[i_layer],
+                         window_size=window_size, depth=0,
+                         shift_size= window_size//2,
+                         mlp_ratio=mlp_ratio,
+                         qkv_bias=qkv_bias, qk_scale=qk_scale,  
+                         drop=drop_rate, attn_drop=attn_drop_rate,
+                         drop_path=dpr[sum(depths[:i_layer]):sum(depths[:i_layer + 1])], 
+                         norm_layer=norm_layer,
+                         gc=32,
+                         img_size=img_size,
+                         patch_size=patch_size)
             self.layers.append(layer)
         self.norm = norm_layer(self.num_features)
 

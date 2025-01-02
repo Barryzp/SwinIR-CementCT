@@ -199,7 +199,9 @@ def define_G(opt):
                    num_heads=opt_net['num_heads'],
                    mlp_ratio=opt_net['mlp_ratio'],
                    upsampler=opt_net['upsampler'],
-                   resi_connection=opt_net['resi_connection'])
+                   resi_connection=opt_net['resi_connection'],
+                   deep_feature_module=opt_net['deep_feat_module_type']
+                   )
 
     # ----------------------------------------
     # others
