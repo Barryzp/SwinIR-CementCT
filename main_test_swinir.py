@@ -16,7 +16,7 @@ def main():
     parser = argparse.ArgumentParser()
     parser.add_argument('--task', type=str, default='classical_sr', help='classical_sr, lightweight_sr, real_sr, '
                                                                      'gray_dn, color_dn, jpeg_car')
-    parser.add_argument('--scale', type=int, default=2, help='scale factor: 1, 2, 3, 4, 8') # 1 for dn and jpeg car
+    parser.add_argument('--scale', type=int, default=4, help='scale factor: 1, 2, 3, 4, 8') # 1 for dn and jpeg car
     parser.add_argument('--noise', type=int, default=15, help='noise level: 15, 25, 50')
     parser.add_argument('--jpeg', type=int, default=40, help='scale factor: 10, 20, 30, 40')
     parser.add_argument('--n_channels', type=int, default=1)
@@ -25,12 +25,15 @@ def main():
                                        'Images are NOT tested patch by patch.')
     parser.add_argument('--large_model', action='store_true', help='use large model, only provided for real image sr')
     parser.add_argument('--model_path', type=str,
-                        default='superresolution/train_swinir_sr_classical_std_2/models/improved/51.33105318528351_G.pth')
-    parser.add_argument('--folder_lq', type=str, default='testsets/SR_new_testset_less_gray/LR/X2/', help='input low-quality test image folder')
-    parser.add_argument('--folder_gt', type=str, default='testsets/SR_new_testset_less_gray/HR/', help='input ground-truth test image folder')
-    parser.add_argument('--save_id', type=str, default='swinir_classical_sr_x2_test', help='input ground-truth test image folder')
+                        default='superresolution/train_swinir_sr_gan_std_4_wgan/models/improved/epc_10000_psnr_27.53623759049065_G.pth')
+    parser.add_argument('--upsampler', default='pixelshuffle', help='use large model, only provided for real image sr')
+
+    parser.add_argument('--folder_lq', type=str, default='testsets/cement_5w_test/LR/X4/', help='input low-quality test image folder')
+    parser.add_argument('--folder_gt', type=str, default='testsets/cement_5w_test/HR/', help='input ground-truth test image folder')
+    parser.add_argument('--save_id', type=str, default='sr_x4_wgan', help='input ground-truth test image folder')
     parser.add_argument('--test', type=bool, default=True, help='input ground-truth test image folder')
     
+
     args = parser.parse_args()
 
 
@@ -131,9 +134,10 @@ def main():
 def define_model(args):
     # 001 classical image sr
     if args.task == 'classical_sr':
+        upsampler = args.upsampler
         model = net(upscale=args.scale, in_chans=args.n_channels, img_size=args.training_patch_size, window_size=8,
                     img_range=1., depths=[6, 6, 6, 6], embed_dim=96, num_heads=[6, 6, 6, 6],
-                    mlp_ratio=2, upsampler='pixelshuffle', resi_connection='1conv')
+                    mlp_ratio=2, upsampler=upsampler, resi_connection='1conv')
         model.load_state_dict(torch.load(args.model_path), strict=True)
 
     # 002 lightweight image sr
