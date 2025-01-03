@@ -14,7 +14,7 @@ def setup(args):
     if args.task in ['classical_sr', 'lightweight_sr']:
         save_dir = f'set5test_results/swinir_{args.task}_x{args.scale}'
         folder = args.folder_gt
-        border = args.scale
+        border = 0#args.scale
         window_size = 8
 
     # 003 real-world image sr
@@ -92,10 +92,13 @@ def get_image_pair(args, path):
 
 
 
-def validate_set5(args, model):
+def validate_set5(args, model, opt):
     device = model.device
     # setup folder and path
-    folder, save_dir, border, window_size = setup(args)
+    folder, save_dir, border, _ = setup(args)
+    
+    window_size = opt["netG"]["window_size"]
+    
     os.makedirs(save_dir, exist_ok=True)
     test_results = OrderedDict()
     test_results['psnr'] = []

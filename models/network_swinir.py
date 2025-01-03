@@ -632,8 +632,8 @@ class PatchUnEmbed(nn.Module):
         self.embed_dim = embed_dim
 
     def forward(self, x, x_size):
-        B, HW, C = x.shape
-        x = x.transpose(1, 2).view(B, self.embed_dim, x_size[0], x_size[1])  # B Ph*Pw C
+        B, HW, C = x.shape  # 输入 x 的结构
+        x = x.transpose(1, 2).view(B, -1, x_size[0], x_size[1])  # 输出结构为 [B, Ph*Pw, C]
         return x
 
     def flops(self):
@@ -876,13 +876,19 @@ class SwinIR(nn.Module):
             x = x + self.absolute_pos_embed
         x = self.pos_drop(x)
 
+        # 保存中间结果
+        intermediate_outputs = []  # 用于保存每层 RSTB 的输出特征
+
         for layer in self.layers:
             x = layer(x, x_size)
+
+            inter_features = self.patch_unembed(self.norm(x), x_size)
+            intermediate_outputs.append(inter_features)  # 保存当前层特征
 
         x = self.norm(x)  # B L C
         x = self.patch_unembed(x, x_size)
 
-        return x
+        return x, intermediate_outputs
 
     def forward(self, x):
         self.mean = self.mean.type_as(x)
@@ -891,18 +897,35 @@ class SwinIR(nn.Module):
         if self.upsampler == 'pixelshuffle':
             # for classical SR
             x = self.conv_first(x)
-            x = self.conv_after_body(self.forward_features(x)) + x
+
+            x_body, intermediate_features = self.forward_features(x)
+
+            # # 融合多层 RSTB 输出特征
+            # concat_features = torch.cat(intermediate_features, dim=1)  # 沿通道维度拼接
+
+            # # 再来一个非线性的激活层吧
+            # fused_features = nn.Sequential(nn.Conv2d(concat_features.shape[1], x_body.shape[1], 1, 1, 0).to(x.device), 
+            #                                nn.ReLU(inplace=True))(concat_features)
+
+            # # 添加残差连接
+            # x = fused_features + x_body
+            
+            x = self.conv_after_body(x_body) + x
             x = self.conv_before_upsample(x)
             x = self.conv_last(self.upsample(x))
         elif self.upsampler == 'pixelshuffledirect':
             # for lightweight SR
             x = self.conv_first(x)
-            x = self.conv_after_body(self.forward_features(x)) + x
+
+            out, _ = self.forward_features(x)
+
+            x = self.conv_after_body(out) + x
             x = self.upsample(x)
         elif self.upsampler == 'nearest+conv':
             # for real-world SR
             x = self.conv_first(x)
-            x = self.conv_after_body(self.forward_features(x)) + x
+            out, _ = self.forward_features(x)
+            x = self.conv_after_body(out) + x
             x = self.conv_before_upsample(x)
             x = self.lrelu(self.conv_up1(torch.nn.functional.interpolate(x, scale_factor=2, mode='nearest')))
             x = self.lrelu(self.conv_up2(torch.nn.functional.interpolate(x, scale_factor=2, mode='nearest')))
@@ -910,7 +933,8 @@ class SwinIR(nn.Module):
         else:
             # for image denoising and JPEG compression artifact reduction
             x_first = self.conv_first(x)
-            res = self.conv_after_body(self.forward_features(x_first)) + x_first
+            out, _ = self.forward_features(x_first)
+            res = self.conv_after_body(out) + x_first
             x = x + self.conv_last(res)
 
         x = x / self.img_range + self.mean

@@ -20,18 +20,22 @@ def main():
     parser.add_argument('--noise', type=int, default=15, help='noise level: 15, 25, 50')
     parser.add_argument('--jpeg', type=int, default=40, help='scale factor: 10, 20, 30, 40')
     parser.add_argument('--n_channels', type=int, default=1)
-    parser.add_argument('--training_patch_size', type=int, default=128, help='patch size used in training SwinIR. '
+    parser.add_argument('--training_patch_size', type=int, default=64, help='patch size used in training SwinIR. '
                                        'Just used to differentiate two different settings in Table 2 of the paper. '
                                        'Images are NOT tested patch by patch.')
     parser.add_argument('--large_model', action='store_true', help='use large model, only provided for real image sr')
     parser.add_argument('--model_path', type=str,
-                        default='superresolution/train_swinir_sr_classical_std_2/models/improved/51.33105318528351_G.pth')
-    parser.add_argument('--folder_lq', type=str, default='testsets/SR_new_testset_less_gray/LR/X2/', help='input low-quality test image folder')
-    parser.add_argument('--folder_gt', type=str, default='testsets/SR_new_testset_less_gray/HR/', help='input ground-truth test image folder')
-    parser.add_argument('--save_id', type=str, default='swinir_classical_sr_x2_test', help='input ground-truth test image folder')
+                        default='superresolution/train_swinir_sr_gan_std_4_DENSE8/models/improved/epc_7000_psnr_29.4040897155016_G.pth')
+    parser.add_argument('--folder_lq', type=str, default='testsets/cement_5w_test/LR/X4/', help='input low-quality test image folder')
+    parser.add_argument('--folder_gt', type=str, default='testsets/cement_5w_test/HR/', help='input ground-truth test image folder')
+    parser.add_argument('--save_id', type=str, default='8_sr_x4_RDG1', help='input ground-truth test image folder')
     parser.add_argument('--test', type=bool, default=True, help='input ground-truth test image folder')
     
     args = parser.parse_args()
+
+
+    # HACK 一些容易变变的内容
+    window_size = 16
 
 
     device = torch.device(f'cuda:{device_id}')
@@ -50,7 +54,7 @@ def main():
     model = model.to(device)
 
     # setup folder and path
-    folder, save_dir, border, window_size = setup(args)
+    folder, save_dir, border, _ = setup(args)
 
     save_dir = f"results/{args.save_id}"
 
@@ -131,9 +135,10 @@ def main():
 def define_model(args):
     # 001 classical image sr
     if args.task == 'classical_sr':
-        model = net(upscale=args.scale, in_chans=args.n_channels, img_size=args.training_patch_size, window_size=8,
-                    img_range=1., depths=[6, 6, 6, 6], embed_dim=96, num_heads=[6, 6, 6, 6],
-                    mlp_ratio=2, upsampler='pixelshuffle', resi_connection='1conv')
+        deep_feature_module = "RDG"
+        model = net(upscale=args.scale, in_chans=args.n_channels, img_size=args.training_patch_size, window_size=16,
+                    img_range=1., depths=[6, 6, 6, 6, 6], embed_dim=180, num_heads=[6, 6, 6, 6, 6, 6],
+                    mlp_ratio=2, upsampler='pixelshuffle', resi_connection='1conv', deep_feature_module=deep_feature_module)
         model.load_state_dict(torch.load(args.model_path), strict=True)
 
     # 002 lightweight image sr

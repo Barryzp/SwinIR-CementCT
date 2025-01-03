@@ -270,7 +270,7 @@ def main():
             #if current_step % 50 == 0 and opt['rank'] == 0:
                 print(" ----set5 validation---")
                 print("current_step: ", current_step)
-                psnr_y  = set5test.validate_set5(args, model)
+                psnr_y  = set5test.validate_set5(args, model, opt)
                 if not args.test : wandb.log({"train_l1_loss": logs['G_loss']})
                 if (psnr_y > psnr_y_record):
                     model.save_better_model(psnr_y, args, current_step )
