@@ -192,9 +192,7 @@ def fspecial_gaussian(hsize, sigma):
     [x, y] = np.meshgrid(np.arange(-siz[1], siz[1]+1), np.arange(-siz[0], siz[0]+1))
     arg = -(x*x + y*y)/(2*std*std)
     h = np.exp(arg)
-    # HACK scipy似乎没有这个函数
     h[h < np.finfo(float).eps * h.max()] = 0
-    # h[h < scipy.finfo(float).eps * h.max()] = 0
     sumh = h.sum()
     if sumh != 0:
         h = h/sumh
@@ -343,18 +341,7 @@ def add_blur(img, sf=4):
         k = anisotropic_Gaussian(ksize=2*random.randint(2,11)+3, theta=random.random()*np.pi, l1=l1, l2=l2)
     else:
         k = fspecial('gaussian', 2*random.randint(2,11)+3, wd*random.random())
-
-    # HACK 原始代码，通道不匹配
-    # img = ndimage.filters.convolve(img, np.expand_dims(k, axis=2), mode='mirror')
-
-    # 调整核的维度以匹配图像维度
-    if img.ndim == 2:  # 图像是二维的，单通道
-        img = ndimage.filters.convolve(img, k, mode='mirror')
-    elif img.ndim == 3:  # 图像是三维的，多通道
-        if k.ndim == 2:
-            k = np.expand_dims(k, axis=2)
-            k = np.repeat(k, img.shape[2], axis=2)
-        img = ndimage.filters.convolve(img, k, mode='mirror')
+    img = ndimage.filters.convolve(img, np.expand_dims(k, axis=2), mode='mirror')
 
     return img
 
@@ -376,31 +363,16 @@ def add_resize(img, sf=4):
 def add_Gaussian_noise(img, noise_level1=2, noise_level2=25):
     noise_level = random.randint(noise_level1, noise_level2)
     rnum = np.random.rand()
-
     if rnum > 0.6:   # add color Gaussian noise
         img += np.random.normal(0, noise_level/255.0, img.shape).astype(np.float32)
     elif rnum < 0.4: # add grayscale Gaussian noise
         img += np.random.normal(0, noise_level/255.0, (*img.shape[:2], 1)).astype(np.float32)
     else:            # add  noise
-        shape = img.shape
-        channels = shape[-1]
-
         L = noise_level2/255.
-        D = np.diag(np.random.rand(channels))
-        U = orth(np.random.rand(channels, channels))
+        D = np.diag(np.random.rand(3))
+        U = orth(np.random.rand(3,3))
         conv = np.dot(np.dot(np.transpose(U), D), U)
-        mean = np.zeros(channels)
-
-        if channels > 1:
-            noise = np.random.multivariate_normal(mean, np.abs(L**2 * conv), img.shape[:2])
-        else:
-            noise = np.random.normal(0, np.abs(L**2 * conv[0, 0]), img.shape[:2])
-            noise = noise[:, :, np.newaxis]  # 为单通道图像增加一个维度以匹配形状
-
-        img = img.astype(np.float32) + noise.astype(np.float32)
-        # HACK
-        # img += np.random.multivariate_normal([0,0,0], np.abs(L**2*conv), img.shape[:2]).astype(np.float32)
-    
+        img += np.random.multivariate_normal([0,0,0], np.abs(L**2*conv), img.shape[:2]).astype(np.float32)
     img = np.clip(img, 0.0, 1.0)
     return img
 
@@ -438,27 +410,11 @@ def add_Poisson_noise(img):
 
 
 def add_JPEG_noise(img):
-    # HACK 以前的代码
-    # quality_factor = random.randint(30, 95)
-    # img = cv2.cvtColor(util.single2uint(img), cv2.COLOR_RGB2BGR)
-    # result, encimg = cv2.imencode('.jpg', img, [int(cv2.IMWRITE_JPEG_QUALITY), quality_factor])
-    # img = cv2.imdecode(encimg, 1)
-    # img = cv2.cvtColor(util.uint2single(img), cv2.COLOR_BGR2RGB)
-
     quality_factor = random.randint(30, 95)
-    # 检查图像是否为单通道灰度图
-    if len(img.shape) == 2 or (len(img.shape) == 3 and img.shape[2] == 1):
-        img = util.single2uint(img)  # 转换为整数像素值
-        result, encimg = cv2.imencode('.jpg', img, [int(cv2.IMWRITE_JPEG_QUALITY), quality_factor])
-        img = cv2.imdecode(encimg, cv2.IMREAD_GRAYSCALE)  # 解码为灰度图
-        img = util.uint2single(img)  # 转换回浮点型像素值
-        img = np.expand_dims(img, axis=-1) # 维度复原
-    else:  # 处理为彩色图像
-        img = cv2.cvtColor(util.single2uint(img), cv2.COLOR_RGB2BGR)
-        result, encimg = cv2.imencode('.jpg', img, [int(cv2.IMWRITE_JPEG_QUALITY), quality_factor])
-        img = cv2.imdecode(encimg, 1)
-        img = cv2.cvtColor(util.uint2single(img), cv2.COLOR_BGR2RGB)
-
+    img = cv2.cvtColor(util.single2uint(img), cv2.COLOR_RGB2BGR)
+    result, encimg = cv2.imencode('.jpg', img, [int(cv2.IMWRITE_JPEG_QUALITY), quality_factor])
+    img = cv2.imdecode(encimg, 1)
+    img = cv2.cvtColor(util.uint2single(img), cv2.COLOR_BGR2RGB)
     return img
 
 
@@ -507,9 +463,6 @@ def degradation_bsrgan(img, sf=4, lq_patchsize=72, isp_model=None):
         img = np.clip(img, 0.0, 1.0)
         sf = 2
 
-    if img.ndim == 2:
-        img = np.expand_dims(img, axis=-1) # 维度复原
-
     shuffle_order = random.sample(range(7), 7)
     idx1, idx2 = shuffle_order.index(2), shuffle_order.index(3)
     if idx1 > idx2:  # keep downsample3 last
@@ -529,23 +482,11 @@ def degradation_bsrgan(img, sf=4, lq_patchsize=72, isp_model=None):
             if random.random() < 0.75:
                 sf1 = random.uniform(1,2*sf)
                 img = cv2.resize(img, (int(1/sf1*img.shape[1]), int(1/sf1*img.shape[0])), interpolation=random.choice([1,2,3]))
-                # 对于灰度图像的额外处理
-                if img.ndim == 2:
-                    img = np.expand_dims(img, axis=-1) # 维度复原
             else:
                 k = fspecial('gaussian', 25, random.uniform(0.1, 0.6*sf))
                 k_shifted = shift_pixel(k, sf)
                 k_shifted = k_shifted/k_shifted.sum()  # blur with shifted kernel
-
-                # HACK 原始图像 有问题 shape不对
-                # img = ndimage.filters.convolve(img, np.expand_dims(k_shifted, axis=2), mode='mirror')
-                if img.ndim == 2:  # 如果 img 是单通道图像
-                    img = ndimage.filters.convolve(img, k_shifted, mode='mirror')
-                elif img.ndim == 3:  # 如果 img 是多通道图像
-                    k_shifted = np.expand_dims(k_shifted, axis=2)
-                    k_shifted = np.repeat(k_shifted, img.shape[2], axis=2)
-                    img = ndimage.filters.convolve(img, k_shifted, mode='mirror')
-
+                img = ndimage.filters.convolve(img, np.expand_dims(k_shifted, axis=2), mode='mirror')
                 img = img[0::sf, 0::sf, ...]  # nearest downsampling
             img = np.clip(img, 0.0, 1.0)
 
@@ -553,10 +494,7 @@ def degradation_bsrgan(img, sf=4, lq_patchsize=72, isp_model=None):
             # downsample3
             img = cv2.resize(img, (int(1/sf*a), int(1/sf*b)), interpolation=random.choice([1,2,3]))
             img = np.clip(img, 0.0, 1.0)
-            
-            # 对于灰度图像的额外处理
-            if img.ndim == 2:
-                img = np.expand_dims(img, axis=-1) # 维度复原
+
         elif i == 4:
             # add Gaussian noise
             img = add_Gaussian_noise(img, noise_level1=2, noise_level2=25)
@@ -577,7 +515,7 @@ def degradation_bsrgan(img, sf=4, lq_patchsize=72, isp_model=None):
 
     # random crop
     img, hq = random_crop(img, hq, sf_ori, lq_patchsize)
-    
+
     return img, hq
 
 

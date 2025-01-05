@@ -50,7 +50,7 @@ def get_image_pair(args, path):
     # 001 classical image sr/ 002 lightweight image sr (load lq-gt image pairs)
     if args.task in ['classical_sr', 'lightweight_sr']:
         img_gt = cv2.imread(path, read_flag).astype(np.float32) / 255.
-        lq_path = f'{args.folder_lq}{imgname}X{args.scale}{imgext}'
+        lq_path = f'{args.folder_lq}{imgname}{imgext}'
         img_lq = cv2.imread(lq_path, read_flag).astype(
             np.float32) / 255.
 

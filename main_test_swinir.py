@@ -25,10 +25,10 @@ def main():
                                        'Images are NOT tested patch by patch.')
     parser.add_argument('--large_model', action='store_true', help='use large model, only provided for real image sr')
     parser.add_argument('--model_path', type=str,
-                        default='superresolution/train_swinir_sr_gan_std_4_DENSE8/models/improved/epc_7000_psnr_29.4040897155016_G.pth')
+                        default='superresolution/train_swinir_sr_gan_std_4_DENSE10/models/improved/epc_11000_psnr_30.04581458314432_G.pth')
     parser.add_argument('--folder_lq', type=str, default='testsets/cement_5w_test/LR/X4/', help='input low-quality test image folder')
     parser.add_argument('--folder_gt', type=str, default='testsets/cement_5w_test/HR/', help='input ground-truth test image folder')
-    parser.add_argument('--save_id', type=str, default='8_sr_x4_RDG1', help='input ground-truth test image folder')
+    parser.add_argument('--save_id', type=str, default='10_sr_x4_RDG_jump', help='input ground-truth test image folder')
     parser.add_argument('--test', type=bool, default=True, help='input ground-truth test image folder')
     
     args = parser.parse_args()

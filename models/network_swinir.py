@@ -748,6 +748,7 @@ class SwinIR(nn.Module):
         self.patch_norm = patch_norm
         self.num_features = embed_dim
         self.mlp_ratio = mlp_ratio
+        self.img_size = img_size
 
         # split image into non-overlapping patches
         self.patch_embed = PatchEmbed(
@@ -813,6 +814,12 @@ class SwinIR(nn.Module):
             self.layers.append(layer)
         self.norm = norm_layer(self.num_features)
 
+        # 使用 nn.ModuleList 代替普通列表
+        self.fusion_linear_deep = nn.ModuleList([
+            nn.Linear(embed_dim * 2, embed_dim)
+            for _ in range(self.num_layers - 2)  # 根据需要的层数初始化
+        ])
+
         # build the last conv layer in deep feature extraction
         if resi_connection == '1conv':
             self.conv_after_body = nn.Conv2d(embed_dim, embed_dim, 3, 1, 1)
@@ -877,18 +884,31 @@ class SwinIR(nn.Module):
         x = self.pos_drop(x)
 
         # 保存中间结果
-        intermediate_outputs = []  # 用于保存每层 RSTB 的输出特征
+        intermediate_outputs = [x]  # 用于保存每层 RSTB 的输出特征
+        total_layer_num = self.num_layers
+        for i, layer in enumerate(self.layers):
+            
+            if i-2 >= 0:
+                last_feature = intermediate_outputs[i-2]
+                feature_ratio = (total_layer_num-i+1)/total_layer_num
+                fused_feature = torch.cat([last_feature*feature_ratio, (1-feature_ratio)*x], dim=2) #last_feature*feature_ratio + x  # 按通道拼接
+                fused_feature = self.fusion_linear_deep[i-2](fused_feature)  # 调整通道数
+                x = layer(fused_feature, x_size)
+            else:
+                x = layer(x, x_size)
+                
+            intermediate_outputs.append(x)
 
-        for layer in self.layers:
-            x = layer(x, x_size)
 
-            inter_features = self.patch_unembed(self.norm(x), x_size)
-            intermediate_outputs.append(inter_features)  # 保存当前层特征
+        last_feature = intermediate_outputs[i-2]
+        feature_ratio = 0.2
+        fused_feature = torch.cat([last_feature*feature_ratio, (1-feature_ratio)*x], dim=2) #last_feature*feature_ratio + x  # 按通道拼接
+        fused_feature = self.fusion_linear_deep[i-2](fused_feature)  # 调整通道数
 
-        x = self.norm(x)  # B L C
+        x = self.norm(fused_feature)  # B L C
         x = self.patch_unembed(x, x_size)
 
-        return x, intermediate_outputs
+        return x
 
     def forward(self, x):
         self.mean = self.mean.type_as(x)
@@ -898,7 +918,7 @@ class SwinIR(nn.Module):
             # for classical SR
             x = self.conv_first(x)
 
-            x_body, intermediate_features = self.forward_features(x)
+            x_body = self.forward_features(x)
 
             # # 融合多层 RSTB 输出特征
             # concat_features = torch.cat(intermediate_features, dim=1)  # 沿通道维度拼接

@@ -79,7 +79,7 @@ class DatasetBlindSR(data.Dataset):
                 img_L, img_H = blindsr.degradation_bsrgan_plus(img_H, self.sf, shuffle_prob=self.shuffle_prob, use_sharp=self.use_sharp, lq_patchsize=self.lq_patchsize)
 
         # HACK 暂存一下结果，看看差异大不大
-        # # 将浮点类型数据转换为 [0, 255] 范围的 uint8 类型
+        # 将浮点类型数据转换为 [0, 255] 范围的 uint8 类型
         # save_L = (img_L * 255).astype(np.uint8)
         # # 使用OpenCV保存图像，由于array_uint8已经是 uint8 类型，可以直接保存
         # cv2.imwrite('imgL.png', save_L)
