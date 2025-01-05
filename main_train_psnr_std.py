@@ -58,14 +58,14 @@ def main():
     parser.add_argument('--noise', type=int, default=15, help='noise level: 15, 25, 50')
     parser.add_argument('--jpeg', type=int, default=40, help='scale factor: 10, 20, 30, 40')
       #在此設定testing set路徑
-    parser.add_argument('--folder_lq', type=str, default="./testsets/cement_5w/LR/X4/", help='input low-quality test image folder')
-    parser.add_argument('--folder_gt', type=str, default="./testsets/cement_5w/HR/", help='input ground-truth test image folder')
+    parser.add_argument('--folder_lq', type=str, default="./testsets/cement_1w_RGB_test/LR/X4/", help='input low-quality test image folder')
+    parser.add_argument('--folder_gt', type=str, default="./testsets/cement_1w_RGB_test/HR/", help='input ground-truth test image folder')
     #----improved model saving path----
     parser.add_argument('--model_save_dir', type=str, default="./superresolution/swinir_sr_classical_patch48_x4/models/improved/", help='if model get performance improved, save model to this path')
     #----chart saving path-------------
     parser.add_argument('--chart_save_dir',type=str, default="./set5test_results/chart/", help='path for chart saving')
     #----channels input image-------------
-    parser.add_argument('--n_channels',type=int, default=1, help='same as .json n_channels')
+    parser.add_argument('--n_channels',type=int, default=3, help='same as .json n_channels')
     # 测试模块
     parser.add_argument('--test',type=bool, default=False, help='test_toggle')
 
@@ -78,10 +78,10 @@ def main():
     opt['dist'] = parser.parse_args().dist
 
     opt['netG']['in_chans'] = args.n_channels
-    opt['datasets']['train']['dataroot_H'] = "dataset/cement_5w/HR/"
-    opt['datasets']['train']['dataroot_L'] = f"dataset/cement_5w/LR/X{sr_scale}/"
-    opt['datasets']['test']['dataroot_H'] = "testsets/cement_5w_test/HR/"
-    opt['datasets']['test']['dataroot_L'] = f"testsets/cement_5w_test/LR/X{sr_scale}/"
+    opt['datasets']['train']['dataroot_H'] = "dataset/cement_1w_RGB_all/HR/"
+    opt['datasets']['train']['dataroot_L'] = f"dataset/cement_1w_RGB_all/LR_DE/X{sr_scale}/"
+    opt['datasets']['test']['dataroot_H'] = "testsets/cement_1w_RGB_all_test/HR/"
+    opt['datasets']['test']['dataroot_L'] = f"testsets/cement_1w_RGB_all_test/LR_DE/X{sr_scale}/"
     opt['netG']['upscale'] = sr_scale
 
 
@@ -225,7 +225,7 @@ def main():
 
     psnr_y_record = 0
 
-    for epoch in range(6):  # keep running, is current_step that matter
+    for epoch in range(20):  # keep running, is current_step that matter
         l1_loss = 0
         
         for i, train_data in enumerate(train_loader):
